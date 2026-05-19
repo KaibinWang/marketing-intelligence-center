@@ -97,17 +97,20 @@ class GdGovCrawler:
         m = re.search(r"(\d{4}[-/]\d{1,2}[-/]\d{1,2})", text)
         return m.group(1).replace("/", "-") if m else ""
 
-    def search(self, keyword="", max_pages=3):
+    def search(self, keyword="", max_pages=3, today_only=False):
         """搜索广东省政府采购中标公告
 
         Args:
             keyword: 搜索关键词（如"中标"），留空获取所有
             max_pages: 最大翻页数
+            today_only: 只收集发布日期为当天的公告
 
         Returns:
             list[dict]: 每项包含 title, detail_url, detail_text, pub_date, source
         """
+        import datetime
         all_items = []
+        today_str = datetime.date.today().strftime("%Y-%m-%d")
 
         for page in range(1, max_pages + 1):
             items = self.fetch_list(page=page)
@@ -126,9 +129,18 @@ class GdGovCrawler:
                 except Exception as e:
                     logger.error(f"详情失败 {item['detail_url']}: {e}")
 
-            all_items.extend(items)
+            if today_only:
+                # 只保留当天发布的公告
+                today_items = [it for it in items if it.get("pub_date") == today_str]
+                all_items.extend(today_items)
+                # 如果当前页已没有当天公告，停止翻页（列表按日期倒序排列）
+                if not today_items:
+                    logger.info(f"gpcgd: 第{page}页已无当天公告，停止翻页")
+                    break
+            else:
+                all_items.extend(items)
 
-        logger.info(f"gpcgd: 关键词='{keyword}', 共 {len(all_items)} 条")
+        logger.info(f"gpcgd: 关键词='{keyword}', today_only={today_only}, 共 {len(all_items)} 条")
         return all_items
 
 

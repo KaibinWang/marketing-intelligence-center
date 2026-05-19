@@ -442,7 +442,7 @@ def _run_pipeline(run_id: int):
         logger.info("采集广东省政府采购中心...")
         from crawler_gdgov import GdGovCrawler
         crawler_gd = GdGovCrawler()
-        gd_items = crawler_gd.search(max_pages=2)
+        gd_items = crawler_gd.search(max_pages=20, today_only=True)
 
         n, d, f, p = _process_items(
             "gdgov", gd_items,
@@ -604,7 +604,7 @@ def _run_crawl(source: str, crawl_id: int = None, keywords: list = None):
             from crawler_gdgov import GdGovCrawler
             crawler = GdGovCrawler()
             db.update_crawl_progress(crawl_id, "正在抓取广东省政府采购中心...", 10)
-            items = crawler.search(max_pages=2)
+            items = crawler.search(max_pages=20, today_only=True)
             if _check_cancel():
                 return
             db.update_crawl_progress(crawl_id, f"共获取 {len(items)} 条公告，开始 AI 抽取", 15)
