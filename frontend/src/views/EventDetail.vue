@@ -28,8 +28,16 @@
               <el-descriptions-item label="发布时间">{{ event.pub_date || '—' }}</el-descriptions-item>
               <el-descriptions-item label="入库时间">{{ event.created_at }}</el-descriptions-item>
               <el-descriptions-item label="原文链接">
-                <template v-if="event.source_url && event.source_url.startsWith('pitchhub://')">
-                  <el-tag type="info" size="small">项目卡片 - 无独立原文</el-tag>
+                <template v-if="!event.source_url">
+                  <el-tag type="info" size="small">无原文链接</el-tag>
+                </template>
+                <template v-else-if="event.source_url.startsWith('pitchhub://') || event.source_url.startsWith('ygp://')">
+                  <el-tag type="info" size="small">无独立原文页面</el-tag>
+                </template>
+                <template v-else-if="event.source_url.includes('ygp.gdzwfw.gov.cn') && !event.source_url.includes('bizCode')">
+                  <span>{{ event.source_url.slice(0, 60) }}…
+                    <el-tag type="warning" size="small">链接可能无法直接访问</el-tag>
+                  </span>
                 </template>
                 <el-link v-else :href="event.source_url" type="primary" target="_blank">查看原文</el-link>
               </el-descriptions-item>

@@ -362,6 +362,82 @@ class EventExtractor:
                 "raw_text": content[:500],
             }
 
+    def extract_from_ygp(self, item):
+        """从广东省公共资源交易平台公告中提取结构化事件信息
+
+        Args:
+            item: dict（来自 YgpCrawler），包含：
+                - title: 公告标题
+                - detail_text: 正文（目前与标题相同，未抓详情页）
+                - pub_date: 发布日期
+                - detail_url: 原文链接
+
+        Returns:
+            dict: 结构化事件信息
+        """
+        title = item.get("title", "")
+        detail_text = item.get("detail_text", "")
+        pub_date = item.get("pub_date", "")
+
+        prompt = f"""你是一个银行营销情报分析助手。请从以下交易公告中提取关键信息，以JSON格式返回。
+
+公告标题：{title}
+
+公告正文：
+{detail_text[:3000]}
+
+请提取以下字段并以JSON格式返回：
+{{
+    "event_type": "事件类型（中标/成交/融资/其他）",
+    "company_name": "中标/成交/供应商全称",
+    "stock_code": "股票代码（如果没有就填'未知'）",
+    "project_or_subject": "项目名称（一句话）",
+    "amount_estimate": "金额（纯数字，单位元，如果没有就填0）",
+    "purchaser": "采购人（招标人）全称",
+    "pub_date": "发布日期（YYYY-MM-DD格式）",
+    "province": "供应商注册省份（根据企业名称判断，广东省内的填'广东'，不确定填'未知'）",
+    "city": "供应商所在城市（根据企业名称判断，如广州、佛山、东莞等，不确定填'未知'）",
+    "source": "广东省公共资源交易平台",
+    "source_url": "原文链接"
+}}
+
+要求：
+1. event_type 根据公告标题判断，中标或成交公告填"中标"，融资相关填"融资"，其他填"其他"
+2. company_name 填中标/成交供应商名称
+3. amount_estimate 转换为纯数字（单位：元），去除逗号和￥符号，没有就填0
+4. province 和 city 根据供应商名称判断
+5. 优先从标题中提取字段
+6. 只返回JSON，不要其他内容"""
+
+        response = self.client.chat.completions.create(
+            model=self.model,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.1,
+        )
+
+        content = response.choices[0].message.content.strip()
+        content = content.replace("```json", "").replace("```", "").strip()
+
+        try:
+            event = json.loads(content)
+            event["source_url"] = item.get("detail_url", "")
+            return event
+        except json.JSONDecodeError:
+            return {
+                "event_type": "中标",
+                "company_name": "未知",
+                "stock_code": "未知",
+                "project_or_subject": title,
+                "amount_estimate": 0,
+                "purchaser": "",
+                "pub_date": pub_date,
+                "province": "广东",
+                "city": "未知",
+                "source": "广东省公共资源交易平台",
+                "source_url": item.get("detail_url", ""),
+                "raw_text": content[:500],
+            }
+
     def generate_marketing_suggestion(self, event):
         """根据事件生成营销建议"""
         company = event.get("company_name", "未知")

@@ -438,7 +438,7 @@ class DashboardDB(IntelligenceDB):
 
     def get_source_status(self):
         """各数据源最近运行状态"""
-        sources = ["cninfo", "pitchhub", "gdgov"]
+        sources = ["cninfo", "pitchhub", "gdgov", "ygp"]
         result = []
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
@@ -558,6 +558,7 @@ class DashboardDB(IntelligenceDB):
             "cninfo": "巨潮资讯网",
             "pitchhub": "36氪融资快报",
             "gdgov": "广东省政府采购中心",
+            "ygp": "广东省公共资源交易平台",
         }
         event_source = source_map.get(source, source)
         with sqlite3.connect(self.db_path) as conn:

@@ -118,7 +118,7 @@ const keywordGroups = reactive([
 const selectAll = ref(true)
 
 function sourceName(src) {
-  const names = { cninfo: '巨潮资讯网', pitchhub: '36氪融资快报', gdgov: '广东省政府采购中心' }
+  const names = { cninfo: '巨潮资讯网', pitchhub: '36氪融资快报', gdgov: '广东省政府采购中心', ygp: '广东省公共资源交易平台' }
   return names[src] || src
 }
 

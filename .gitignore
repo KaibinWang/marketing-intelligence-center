@@ -32,3 +32,6 @@ Thumbs.db
 
 # Vite dev server
 frontend/.vite/
+
+# Frontend build output
+frontend/dist/

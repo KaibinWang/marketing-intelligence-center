@@ -137,7 +137,7 @@ async def api_pipeline_latest():
 
 @app.post("/api/crawl/{source}")
 async def api_trigger_crawl(source: str, request: Request, background_tasks: BackgroundTasks):
-    if source not in ("cninfo", "pitchhub", "gdgov"):
+    if source not in ("cninfo", "pitchhub", "gdgov", "ygp"):
         return JSONResponse({"error": "不支持的数据源"}, status_code=400)
     body = await request.json()
     keywords = body.get("keywords")
@@ -450,6 +450,40 @@ def _run_pipeline(run_id: int):
         summary["errors"].append(f"[gdgov] 采集失败: {e}")
         db.log_crawl("gdgov", "failed", 0, error_msg=str(e), started_at=None)
 
+    # ---- 数据源4: 广东省公共资源交易平台 (跳过AI提取) ----
+    try:
+        logger.info("采集广东省公共资源交易平台...")
+        from crawler_ygp import search_sync
+        ygp_items = search_sync(max_pages=1)
+
+        def _parse_ygp(item):
+            title = item.get("title", "")
+            et = "中标" if any(k in title for k in ["中标", "成交", "中选"]) else ("融资" if "融资" in title else "其他")
+            return {
+                "event_type": et, "company_name": "", "stock_code": "",
+                "project_or_subject": title[:200], "amount_estimate": 0,
+                "purchaser": "", "pub_date": item.get("pub_date", ""),
+                "province": "广东", "city": "",
+                "source": "广东省公共资源交易平台",
+                "source_url": item.get("detail_url", ""),
+            }
+
+        n, d, f, p = _process_items(
+            "ygp", ygp_items,
+            lambda x: x.get("detail_text", "") or x.get("title", ""),
+            _parse_ygp,
+        )
+        summary["sources"]["ygp"] = {"new": n, "dup": d, "filtered": f, "pushed": p}
+        summary["total_new"] += n
+        summary["total_dup"] += d
+        summary["total_filtered"] += f
+        summary["total_pushed"] += p
+        db.log_crawl("ygp", "success", len(ygp_items), started_at=None)
+    except Exception as e:
+        logger.error(f"广东省公共资源交易平台采集失败: {e}")
+        summary["errors"].append(f"[ygp] 采集失败: {e}")
+        db.log_crawl("ygp", "failed", 0, error_msg=str(e), started_at=None)
+
     db.finish_pipeline_run(run_id, "completed", summary)
     logger.info(f"=== 流水线 #{run_id} 完成: 新增{summary['total_new']}, 推送{summary['total_pushed']} ===")
 
@@ -625,7 +659,57 @@ def _run_crawl(source: str, crawl_id: int = None, keywords: list = None):
                     suggestion = ""
                 db.save_event(event, item.get("detail_text", ""), suggestion, source_url)
                 total_new += 1
-                time.sleep(0.5)
+
+        elif source == "ygp":
+            from crawler_ygp import search_sync
+
+            def _parse_ygp_event(item):
+                """从标题简单提取信息（跳过 AI）"""
+                title = item.get("title", "")
+                pub_date = item.get("pub_date", "")
+                if any(k in title for k in ["中标", "成交", "中选"]):
+                    event_type = "中标"
+                elif "融资" in title:
+                    event_type = "融资"
+                else:
+                    event_type = "其他"
+                return {
+                    "event_type": event_type,
+                    "company_name": "",
+                    "stock_code": "",
+                    "project_or_subject": title[:200],
+                    "amount_estimate": 0,
+                    "purchaser": "",
+                    "pub_date": pub_date,
+                    "province": "广东",
+                    "city": "",
+                    "source": "广东省公共资源交易平台",
+                    "source_url": item.get("detail_url", ""),
+                }
+
+            db.update_crawl_progress(crawl_id, "正在抓取广东省公共资源交易平台...", 10)
+            items = search_sync(max_pages=1)
+            if _check_cancel():
+                return
+            db.update_crawl_progress(crawl_id, f"共获取 {len(items)} 条公告，跳过 AI 提取", 15)
+            for idx, item in enumerate(items):
+                if _check_cancel():
+                    return
+                source_url = item.get("detail_url", "")
+                if not source_url:
+                    continue
+                if db.exists(source_url):
+                    total_dup += 1
+                    continue
+                pct = 15 + int(80 * (idx + 1) / len(items))
+                event = _parse_ygp_event(item)
+                db.update_crawl_progress(crawl_id, f"第 {idx+1}/{len(items)} 条: {event.get('event_type','?')} - {item.get('title','')[:40]}", pct)
+                if not _match_filter(event, filter_config):
+                    total_filtered += 1
+                    db.save_event(event, item.get("detail_text", ""), "", source_url, status="filtered")
+                    continue
+                db.save_event(event, item.get("detail_text", ""), "", source_url)
+                total_new += 1
 
         total_fetched = total_new + total_dup + total_filtered
         summary_msg = f"完成: 新增 {total_new} 条, 过滤 {total_filtered} 条, 重复 {total_dup} 条"

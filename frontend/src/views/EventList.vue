@@ -21,6 +21,7 @@
             <el-option label="巨潮资讯网" value="巨潮资讯网" />
             <el-option label="36氪融资快报" value="36氪融资快报" />
             <el-option label="广东省政府采购中心" value="广东省政府采购中心" />
+            <el-option label="广东省公共资源交易平台" value="广东省公共资源交易平台" />
           </el-select>
         </el-form-item>
         <el-form-item label="状态">
@@ -70,6 +71,7 @@
           <template #default="{ row }">
             <span>{{ row.source }}</span>
             <el-tag v-if="row.source_url && row.source_url.startsWith('pitchhub://')" size="small" type="info" effect="plain">无原文</el-tag>
+            <el-tag v-else-if="row.source_url && row.source_url.startsWith('ygp://')" size="small" type="info" effect="plain">无原文</el-tag>
           </template>
         </el-table-column>
         <el-table-column prop="created_at" label="入库时间" width="160" />
