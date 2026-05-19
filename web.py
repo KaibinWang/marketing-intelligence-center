@@ -7,7 +7,6 @@ import logging
 from fastapi import FastAPI, Request, Query, BackgroundTasks
 from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
 
 from dashboard_db import DashboardDB
 from config import CONFIG
@@ -17,27 +16,9 @@ logger = logging.getLogger(__name__)
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 app = FastAPI(title="营销情报中心 - 管理后台")
-templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "templates"))
 db = DashboardDB()
 
 PAGE_SIZE = 20
-
-
-# =====================================================================
-# 传统 HTML 页面路由（SPA 未覆盖的页面）
-# =====================================================================
-
-@app.get("/crawl/{crawl_id}", response_class=HTMLResponse)
-async def page_crawl_detail(request: Request, crawl_id: int):
-    record = db.get_crawl_detail(crawl_id)
-    if not record:
-        return JSONResponse({"error": "采集记录不存在"}, status_code=404)
-    events = db.get_events_by_crawl(record)
-    return templates.TemplateResponse("crawl_detail.html", {
-        "request": request,
-        "record": record,
-        "events": events,
-    })
 
 
 # =====================================================================
@@ -191,6 +172,16 @@ async def api_cancel_crawl(crawl_id: int):
     return {"status": "ok", "message": "已请求取消"}
 
 
+@app.get("/api/crawl/{crawl_id}/events")
+async def api_crawl_events(crawl_id: int):
+    """获取某次采集产生的所有情报"""
+    record = db.get_crawl_detail(crawl_id)
+    if not record:
+        return JSONResponse({"error": "采集记录不存在"}, status_code=404)
+    events = db.get_events_by_crawl(record)
+    return {"record": record, "events": events}
+
+
 @app.get("/api/health")
 async def api_health():
     count = db.get_today_count()
@@ -222,11 +213,10 @@ if os.path.isdir(FRONTEND_DIST):
             return FileResponse(fpath)
         return JSONResponse(status_code=404, content={"error": "Not found"})
 
-    # SPA 回退：所有非 API、非 crawl 的路由都返回 index.html
+    # SPA 回退：所有非 API 路径都返回 index.html
     @app.get("/{full_path:path}")
     async def serve_spa(full_path: str):
-        # 不要拦截 API 和传统页面路径
-        if full_path.startswith("api/") or full_path.startswith("crawl/"):
+        if full_path.startswith("api/"):
             return JSONResponse(status_code=404, content={"error": "Not found"})
         index_path = os.path.join(FRONTEND_DIST, "index.html")
         with open(index_path, "r", encoding="utf-8") as f:

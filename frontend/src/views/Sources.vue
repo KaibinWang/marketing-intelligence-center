@@ -239,7 +239,7 @@ async function refreshSources() {
 }
 
 function goCrawlDetail(row) {
-  window.location.href = `/crawl/${row.id}`
+  router.push(`/crawl/${row.id}`)
 }
 
 onMounted(async () => {

@@ -75,4 +75,8 @@ export function getCrawlDetail(crawlId) {
   return api.get(`/crawl-status/${crawlId}`)
 }
 
+export function getCrawlEvents(crawlId) {
+  return api.get(`/crawl/${crawlId}/events`)
+}
+
 export { dayjs }
