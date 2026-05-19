@@ -1,5 +1,6 @@
 <template>
   <div v-loading="loading">
+    <!-- 统计卡片 -->
     <el-row :gutter="16">
       <el-col :span="6">
         <div class="stat-card bg-primary">
@@ -31,17 +32,14 @@
       </el-col>
     </el-row>
 
+    <!-- 第一行：类型分布 + 来源分布 -->
     <el-row :gutter="16" style="margin-top:16px">
       <el-col :span="12">
         <el-card shadow="never">
           <template #header>按事件类型分布</template>
           <div v-for="item in data.type_dist" :key="item.event_type" class="bar-row">
             <span class="bar-label">{{ item.event_type }}</span>
-            <el-progress
-              :percentage="calcPct(item.count)"
-              :stroke-width="20"
-              :show-text="false"
-            />
+            <el-progress :percentage="calcPct(item.count, data.stats.total)" :stroke-width="20" :show-text="false" />
             <span class="bar-count">{{ item.count }}</span>
           </div>
           <el-empty v-if="!data.type_dist.length" description="暂无数据" />
@@ -52,12 +50,7 @@
           <template #header>按数据来源分布</template>
           <div v-for="item in data.source_dist" :key="item.source" class="bar-row">
             <span class="bar-label">{{ item.source }}</span>
-            <el-progress
-              :percentage="calcPct(item.count)"
-              :stroke-width="20"
-              color="#67c23a"
-              :show-text="false"
-            />
+            <el-progress :percentage="calcPct(item.count, data.stats.total)" :stroke-width="20" color="#67c23a" :show-text="false" />
             <span class="bar-count">{{ item.count }}</span>
           </div>
           <el-empty v-if="!data.source_dist.length" description="暂无数据" />
@@ -65,14 +58,61 @@
       </el-col>
     </el-row>
 
-    <el-card shadow="never" style="margin-top:16px">
-      <template #header>近 7 天新增趋势</template>
-      <el-table :data="trendData" stripe v-if="trendData.length">
-        <el-table-column prop="day" label="日期" />
-        <el-table-column prop="count" label="新增数量" />
-      </el-table>
-      <el-empty v-else description="暂无数据" />
-    </el-card>
+    <!-- 第二行：金额分布 + 状态分布 -->
+    <el-row :gutter="16" style="margin-top:16px">
+      <el-col :span="12">
+        <el-card shadow="never">
+          <template #header>按金额分布</template>
+          <div v-for="item in data.amount_dist" :key="item.label" class="bar-row">
+            <span class="bar-label">{{ item.label }}</span>
+            <el-progress :percentage="calcPct(item.count, data.stats.total)" :stroke-width="20" color="#e6a23c" :show-text="false" />
+            <span class="bar-count">{{ item.count }}</span>
+          </div>
+          <el-empty v-if="!data.amount_dist.length" description="暂无数据" />
+        </el-card>
+      </el-col>
+      <el-col :span="12">
+        <el-card shadow="never">
+          <template #header>按处理状态分布</template>
+          <div v-for="item in data.status_dist" :key="item.status" class="bar-row">
+            <span class="bar-label">{{ statusLabel(item.status) }}</span>
+            <el-progress
+              :percentage="calcPct(item.count, data.stats.total)"
+              :stroke-width="20"
+              :color="statusColor(item.status)"
+              :show-text="false"
+            />
+            <span class="bar-count">{{ item.count }}</span>
+          </div>
+          <el-empty v-if="!data.status_dist.length" description="暂无数据" />
+        </el-card>
+      </el-col>
+    </el-row>
+
+    <!-- 第三行：企业排行 + 7日趋势 -->
+    <el-row :gutter="16" style="margin-top:16px">
+      <el-col :span="12">
+        <el-card shadow="never">
+          <template #header>企业排行 TOP 10</template>
+          <el-table :data="data.top_companies" stripe size="small" v-if="data.top_companies.length">
+            <el-table-column type="index" label="排名" width="60" />
+            <el-table-column prop="company_name" label="企业名称" min-width="180" show-overflow-tooltip />
+            <el-table-column prop="count" label="出现次数" width="100" />
+          </el-table>
+          <el-empty v-else description="暂无数据" />
+        </el-card>
+      </el-col>
+      <el-col :span="12">
+        <el-card shadow="never">
+          <template #header>近 7 天新增趋势</template>
+          <el-table :data="trendData" stripe size="small" v-if="trendData.length">
+            <el-table-column prop="day" label="日期" />
+            <el-table-column prop="count" label="新增数量" />
+          </el-table>
+          <el-empty v-else description="暂无数据" />
+        </el-card>
+      </el-col>
+    </el-row>
   </div>
 </template>
 
@@ -80,16 +120,25 @@
 import { ref, computed, onMounted } from 'vue'
 import { getStats } from '@/api'
 
-const data = ref({ stats: {}, type_dist: [], source_dist: [], daily_trend: [] })
+const data = ref({ stats: {}, type_dist: [], source_dist: [], daily_trend: [], amount_dist: [], top_companies: [], status_dist: [] })
 const loading = ref(true)
 
 const trendData = computed(() =>
   [...(data.value.daily_trend || [])].slice(-7).reverse()
 )
 
-function calcPct(count) {
-  const total = data.value.stats.total || 1
-  return Math.round(count / total * 100)
+function calcPct(count, total) {
+  return Math.round((count || 0) / (total || 1) * 100)
+}
+
+function statusLabel(s) {
+  const map = { new: '未推送', sent: '已推送', filtered: '已过滤' }
+  return map[s] || s
+}
+
+function statusColor(s) {
+  const map = { new: '#e6a23c', sent: '#67c23a', filtered: '#909399' }
+  return map[s] || '#409eff'
 }
 
 async function loadData() {

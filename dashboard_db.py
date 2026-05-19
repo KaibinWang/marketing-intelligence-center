@@ -169,6 +169,51 @@ class DashboardDB(IntelligenceDB):
             """.format(days))
             return [{"day": row[0], "count": row[1]} for row in cursor.fetchall()]
 
+    def get_amount_distribution(self):
+        """按金额区间统计"""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.execute("""
+                SELECT
+                    SUM(CASE WHEN amount_estimate > 0 AND amount_estimate < 100000 THEN 1 ELSE 0 END) as range_lt_10w,
+                    SUM(CASE WHEN amount_estimate >= 100000 AND amount_estimate < 1000000 THEN 1 ELSE 0 END) as range_10w_100w,
+                    SUM(CASE WHEN amount_estimate >= 1000000 AND amount_estimate < 10000000 THEN 1 ELSE 0 END) as range_100w_1000w,
+                    SUM(CASE WHEN amount_estimate >= 10000000 THEN 1 ELSE 0 END) as range_gt_1000w,
+                    SUM(CASE WHEN amount_estimate IS NULL OR amount_estimate = 0 THEN 1 ELSE 0 END) as range_unknown
+                FROM events
+            """)
+            row = cursor.fetchone()
+            return [
+                {"label": "10万以下", "count": row[0] or 0},
+                {"label": "10万~100万", "count": row[1] or 0},
+                {"label": "100万~1000万", "count": row[2] or 0},
+                {"label": "1000万以上", "count": row[3] or 0},
+                {"label": "未知金额", "count": row[4] or 0},
+            ]
+
+    def get_top_companies(self, limit=10):
+        """企业排行"""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.execute("""
+                SELECT company_name, COUNT(*) as cnt
+                FROM events
+                WHERE company_name IS NOT NULL AND company_name != '' AND company_name != '未知'
+                GROUP BY company_name
+                ORDER BY cnt DESC
+                LIMIT ?
+            """, (limit,))
+            return [{"company_name": row[0], "count": row[1]} for row in cursor.fetchall()]
+
+    def get_status_distribution(self):
+        """按状态统计"""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.execute("""
+                SELECT status, COUNT(*) as cnt
+                FROM events
+                GROUP BY status
+                ORDER BY cnt DESC
+            """)
+            return [{"status": row[0], "count": row[1]} for row in cursor.fetchall()]
+
     # ====== 推送日志 ======
 
     def log_push(self, event_id, channel="wecom", status="success", error_msg=None):

@@ -79,11 +79,14 @@ async def api_get_event(event_id: int):
 @app.get("/api/stats")
 async def api_stats():
     return {
-        "push_stats": db.get_push_stats(),
+        "stats": db.get_push_stats(),
         "type_dist": db.get_event_type_distribution(),
         "source_dist": db.get_source_distribution(),
         "daily_trend": db.get_daily_trend(),
         "today_count": db.get_today_count(),
+        "amount_dist": db.get_amount_distribution(),
+        "top_companies": db.get_top_companies(10),
+        "status_dist": db.get_status_distribution(),
     }
 
 
