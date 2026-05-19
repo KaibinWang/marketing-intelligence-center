@@ -105,6 +105,8 @@ async def api_mark_sent(event_id: int):
     event = db.get_event(event_id)
     if not event:
         return JSONResponse({"status": "error", "message": "情报不存在"}, status_code=404)
+    if event.get("status") == "sent":
+        return JSONResponse({"status": "error", "message": "已推送过，无需重复推送"})
     settings = db.get_all_settings()
     webhook_url = settings.get("wecom_webhook_url", "")
     if not webhook_url:

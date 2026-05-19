@@ -79,7 +79,7 @@
             <el-tag v-else type="warning" size="small">未推送</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="120" fixed="right">
+        <el-table-column label="操作" width="155" fixed="right">
           <template #default="{ row }">
             <el-button size="small" @click.stop="goDetail(row)">查看</el-button>
             <el-button v-if="row.status !== 'sent'" size="small" type="success" @click.stop="handleMarkSent(row)">发送</el-button>
