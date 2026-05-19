@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% block title %}{{ event.company_name or '情报详情' }} - 营销情报中心{% endblock %}
+{% block page_title %}情报详情{% endblock %}
+
+{% block content %}
+<a href="{{ referer or '/' }}" class="btn btn-outline-secondary btn-sm mb-3">&larr; 返回列表</a>
+
+<div class="row">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header"><h3 class="card-title">基本信息</h3></div>
+            <div class="card-body p-0">
+                <table class="table table-borderless mb-0">
+                    <tr><td style="width:120px;color:#6c757d;">企业名称</td><td>{{ event.company_name or '—' }}</td></tr>
+                    <tr><td style="color:#6c757d;">股票代码</td><td>{{ event.stock_code or '—' }}</td></tr>
+                    <tr><td style="color:#6c757d;">事件类型</td><td><span class="badge bg-info">{{ event.event_type }}</span></td></tr>
+                    <tr><td style="color:#6c757d;">项目/事项</td><td>{{ event.project_or_subject or '—' }}</td></tr>
+                    <tr>
+                        <td style="color:#6c757d;">金额</td>
+                        <td>
+                            {% if event.amount_estimate and event.amount_estimate > 0 %}
+                                {% if event.amount_estimate >= 100000000 %}
+                                    {{ "%.1f" | format(event.amount_estimate / 100000000) }} 亿元
+                                {% elif event.amount_estimate >= 10000 %}
+                                    {{ (event.amount_estimate / 10000) | round | int }} 万元
+                                {% else %}
+                                    {{ event.amount_estimate }} 元
+                                {% endif %}
+                            {% else %}
+                                未披露
+                            {% endif %}
+                        </td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+        <div class="card">
+            <div class="card-header"><h3 class="card-title">来源信息</h3></div>
+            <div class="card-body p-0">
+                <table class="table table-borderless mb-0">
+                    <tr><td style="width:120px;color:#6c757d;">数据来源</td><td>{{ event.source or '—' }}</td></tr>
+                    <tr><td style="color:#6c757d;">发布时间</td><td>{{ event.pub_date or '—' }}</td></tr>
+                    <tr><td style="color:#6c757d;">入库时间</td><td>{{ event.created_at }}</td></tr>
+                    <tr><td style="color:#6c757d;">原文链接</td><td>
+                        {% if event.source_url and event.source_url.startswith('pitchhub://') %}
+                            <span class="badge bg-secondary">项目卡片 - 无独立原文</span>
+                        {% else %}
+                            <a href="{{ event.source_url }}" target="_blank" rel="noopener">查看原文 &rarr;</a>
+                        {% endif %}
+                    </td></tr>
+                </table>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header"><h3 class="card-title">AI 营销建议</h3></div>
+            <div class="card-body">
+                <div class="suggestion-box">{{ event.marketing_suggestion or '暂无建议' }}</div>
+            </div>
+        </div>
+        <div class="card">
+            <div class="card-header"><h3 class="card-title">推送状态</h3></div>
+            <div class="card-body">
+                {% if event.status == 'sent' %}
+                    <span class="status-badge status-sent">已推送</span>
+                {% else %}
+                    <form method="post" action="/api/events/{{ event.id }}/mark-sent" style="display:inline">
+                        <button type="submit" class="btn btn-success btn-sm" onclick="return markSent(this)">标记为已推送</button>
+                    </form>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if event.detail_text %}
+<div class="card mt-3">
+    <div class="card-header"><h3 class="card-title">原文详情</h3></div>
+    <div class="card-body">
+        <div class="scrollable-text">{{ event.detail_text }}</div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+function markSent(btn) {
+    const form = btn.closest('form');
+    const action = form.getAttribute('action');
+    fetch(action, { method: 'POST' })
+        .then(r => r.json())
+        .then(data => { if (data.status === 'ok') location.reload(); });
+    return false;
+}
+</script>
+{% endblock %}

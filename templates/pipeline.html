@@ -1,0 +1,218 @@
+{% extends "base.html" %}
+{% block title %}完整采集 - 营销情报中心{% endblock %}
+{% block page_title %}完整采集流水线{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12 text-center py-3">
+        <button id="runBtn" class="btn btn-primary btn-lg" onclick="runPipeline()">
+            <i class="fas fa-play me-2"></i>执行完整采集
+        </button>
+        <p id="statusMsg" class="text-muted mt-2 mb-0"></p>
+    </div>
+</div>
+
+<div id="latestRun" style="display:none;" class="mb-4">
+    <div class="card">
+        <div class="card-header"><h3 class="card-title">最近一次采集结果</h3></div>
+        <div class="card-body" id="runResult"></div>
+    </div>
+</div>
+
+{% if latest and latest.status != 'running' %}
+<div class="card mb-4">
+    <div class="card-header"><h3 class="card-title">上次采集结果</h3></div>
+    <div class="card-body">
+        {% set s = latest.summary %}
+        {% if s %}
+        <div class="row text-center mb-3">
+            <div class="col-3"><h4 class="text-success">{{ s.total_new }}</h4><small class="text-muted">新增情报</small></div>
+            <div class="col-3"><h4 class="text-warning">{{ s.total_dup }}</h4><small class="text-muted">重复跳过</small></div>
+            <div class="col-3"><h4 class="text-secondary">{{ s.total_filtered }}</h4><small class="text-muted">地域过滤</small></div>
+            <div class="col-3"><h4 class="text-primary">{{ s.total_pushed }}</h4><small class="text-muted">已推送</small></div>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-sm">
+                <thead class="table-light"><tr><th>数据源</th><th>新增</th><th>重复</th><th>过滤</th><th>推送</th></tr></thead>
+                <tbody>
+                    {% for src_name, src_data in s.sources.items() %}
+                    <tr>
+                        <td>
+                            {% if src_name == 'cninfo' %}巨潮资讯网
+                            {% elif src_name == 'pitchhub' %}36氪融资快报
+                            {% elif src_name == 'gdgov' %}广东省政府采购中心
+                            {% else %}{{ src_name }}{% endif %}
+                        </td>
+                        <td>{{ src_data.new }}</td>
+                        <td>{{ src_data.dup }}</td>
+                        <td>{{ src_data.filtered }}</td>
+                        <td>{{ src_data.pushed }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% if s.errors %}
+        <div class="mt-3">
+            <h6>错误信息</h6>
+            <ul class="text-danger small">
+                {% for err in s.errors %}
+                <li>{{ err }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+        {% else %}
+        <p class="text-muted mb-0">暂无数据</p>
+        {% endif %}
+        <p class="text-muted small mt-3 mb-0">
+            开始: {{ latest.started_at }} &nbsp;|&nbsp; 结束: {{ latest.finished_at }}
+        </p>
+    </div>
+</div>
+{% endif %}
+
+<div class="card">
+    <div class="card-header"><h3 class="card-title">采集历史</h3></div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr><th>ID</th><th>状态</th><th>开始时间</th><th>完成时间</th><th>新增</th><th>推送</th><th>错误</th></tr>
+                </thead>
+                <tbody>
+                    {% for run in history %}
+                    <tr>
+                        <td>{{ run.id }}</td>
+                        <td>
+                            {% if run.status == 'running' %}
+                                <span class="badge bg-info">运行中</span>
+                            {% elif run.status == 'completed' %}
+                                <span class="status-badge status-success">完成</span>
+                            {% else %}
+                                <span class="status-badge status-failed">失败</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ run.started_at }}</td>
+                        <td>{{ run.finished_at or '—' }}</td>
+                        <td>{{ run.summary.total_new if run.summary else '—' }}</td>
+                        <td>{{ run.summary.total_pushed if run.summary else '—' }}</td>
+                        <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;">
+                            {% if run.summary and run.summary.errors %}
+                                <span class="text-danger">{{ run.summary.errors|length }} 个</span>
+                            {% elif run.error_msg %}
+                                <span class="text-danger">{{ run.error_msg[:40] }}</span>
+                            {% else %}
+                                —
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="7" class="text-center text-muted py-3">暂无采集记录</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function runPipeline() {
+    const btn = document.getElementById('runBtn');
+    const msg = document.getElementById('statusMsg');
+    const latestRun = document.getElementById('latestRun');
+    const runResult = document.getElementById('runResult');
+
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>采集中...';
+    msg.textContent = '正在执行完整采集，请稍候...';
+
+    fetch('/api/run-pipeline', { method: 'POST' })
+        .then(r => r.json())
+        .then(data => {
+            msg.textContent = '采集已触发，轮询结果...';
+            return pollResult(data.run_id);
+        })
+        .catch(err => {
+            msg.textContent = '触发失败: ' + err;
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-play me-2"></i>执行完整采集';
+        });
+}
+
+function pollResult(runId) {
+    const maxAttempts = 120;
+    let attempts = 0;
+
+    function check() {
+        return fetch('/api/pipeline-latest')
+            .then(r => r.json())
+            .then(data => {
+                attempts++;
+                const msg = document.getElementById('statusMsg');
+
+                if (data.status === 'running') {
+                    msg.textContent = '采集中... (' + attempts + 's)';
+                    return new Promise(resolve => setTimeout(resolve, 1000))
+                        .then(() => attempts < maxAttempts ? check() : null);
+                }
+
+                if (data.status === 'completed') {
+                    showResult(data);
+                    return;
+                }
+
+                msg.textContent = '采集异常';
+                const btn = document.getElementById('runBtn');
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-play me-2"></i>执行完整采集';
+            });
+    }
+    return check();
+}
+
+function showResult(data) {
+    const btn = document.getElementById('runBtn');
+    const msg = document.getElementById('statusMsg');
+    const latestRun = document.getElementById('latestRun');
+    const runResult = document.getElementById('runResult');
+
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-play me-2"></i>执行完整采集';
+    msg.textContent = '采集完成';
+
+    const s = data.summary || {};
+    let html = '<div class="row text-center mb-3">';
+    html += '<div class="col-3"><h4 class="text-success">' + (s.total_new || 0) + '</h4><small class="text-muted">新增情报</small></div>';
+    html += '<div class="col-3"><h4 class="text-warning">' + (s.total_dup || 0) + '</h4><small class="text-muted">重复跳过</small></div>';
+    html += '<div class="col-3"><h4 class="text-secondary">' + (s.total_filtered || 0) + '</h4><small class="text-muted">地域过滤</small></div>';
+    html += '<div class="col-3"><h4 class="text-primary">' + (s.total_pushed || 0) + '</h4><small class="text-muted">已推送</small></div>';
+    html += '</div>';
+
+    if (s.sources) {
+        html += '<div class="table-responsive"><table class="table table-sm"><thead class="table-light"><tr><th>数据源</th><th>新增</th><th>重复</th><th>过滤</th><th>推送</th></tr></thead><tbody>';
+        const names = { cninfo: '巨潮资讯网', pitchhub: '36氪融资快报', gdgov: '广东省政府采购中心' };
+        for (const [src, sd] of Object.entries(s.sources)) {
+            html += '<tr><td>' + (names[src] || src) + '</td><td>' + sd.new + '</td><td>' + sd.dup + '</td><td>' + sd.filtered + '</td><td>' + sd.pushed + '</td></tr>';
+        }
+        html += '</tbody></table></div>';
+    }
+
+    if (s.errors && s.errors.length) {
+        html += '<div class="mt-2"><h6>错误</h6><ul class="text-danger small">';
+        for (const err of s.errors) {
+            html += '<li>' + err + '</li>';
+        }
+        html += '</ul></div>';
+    }
+
+    html += '<p class="text-muted small mt-2 mb-0">开始: ' + (data.started_at || '') + ' | 结束: ' + (data.finished_at || '') + '</p>';
+
+    runResult.innerHTML = html;
+    latestRun.style.display = 'block';
+    setTimeout(() => location.reload(), 2000);
+}
+</script>
+{% endblock %}

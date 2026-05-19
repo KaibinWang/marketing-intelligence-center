@@ -1,0 +1,156 @@
+{% extends "base.html" %}
+{% block title %}过滤设置 - 营销情报中心{% endblock %}
+{% block page_title %}过滤设置{% endblock %}
+
+{% block content %}
+<p class="text-muted">修改采集流水线的地域过滤规则。仅影响从「完整采集」页面触发的采集任务。</p>
+
+<div class="row">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-body">
+                <form id="settingsForm" onsubmit="return saveSettings()">
+                    <h5 class="mb-3">地域过滤</h5>
+                    <div class="mb-3">
+                        <label for="enabled_provinces" class="form-label fw-semibold">包含省份</label>
+                        <div class="form-text mb-1">只采集这些省份的情报，多个用逗号分隔</div>
+                        <input type="text" class="form-control" id="enabled_provinces" name="enabled_provinces"
+                               value="{{ settings.enabled_provinces or '广东' }}"
+                               placeholder="例: 广东,上海,浙江">
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="excluded_cities" class="form-label fw-semibold">排除城市</label>
+                        <div class="form-text mb-1">从包含省份中排除以下城市，多个用逗号分隔</div>
+                        <input type="text" class="form-control" id="excluded_cities" name="excluded_cities"
+                               value="{{ settings.excluded_cities or '深圳' }}"
+                               placeholder="例: 深圳,厦门">
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="extra_cities" class="form-label fw-semibold">额外包含城市</label>
+                        <div class="form-text mb-1">不限省份，以下城市的情报都采集（可选）</div>
+                        <input type="text" class="form-control" id="extra_cities" name="extra_cities"
+                               value="{{ settings.extra_cities or '' }}"
+                               placeholder="例: 北京,杭州">
+                    </div>
+
+                    <hr class="my-4">
+
+                    <h5 class="mb-3">DeepSeek 大模型配置</h5>
+                    <div class="form-text mb-1">用于 AI 抽取和营销建议生成。修改后将覆盖 <code>config.json</code> 中的配置。</div>
+                    <div class="mb-3">
+                        <label for="deepseek_api_key" class="form-label fw-semibold">API Key</label>
+                        <input type="password" class="form-control" id="deepseek_api_key" name="deepseek_api_key"
+                               value="{{ settings.deepseek_api_key or '' }}" placeholder="sk-...">
+                    </div>
+                    <div class="mb-3">
+                        <label for="deepseek_api_url" class="form-label fw-semibold">API 地址</label>
+                        <input type="url" class="form-control" id="deepseek_api_url" name="deepseek_api_url"
+                               value="{{ settings.deepseek_api_url or 'https://api.deepseek.com' }}">
+                    </div>
+                    <div class="mb-3">
+                        <label for="deepseek_model" class="form-label fw-semibold">模型名称</label>
+                        <input type="text" class="form-control" id="deepseek_model" name="deepseek_model"
+                               value="{{ settings.deepseek_model or 'deepseek-chat' }}">
+                    </div>
+
+                    <hr class="my-4">
+
+                    <h5 class="mb-3">推送设置</h5>
+                    <div class="mb-3">
+                        <label for="wecom_webhook_url" class="form-label fw-semibold">企业微信 Webhook 地址</label>
+                        <div class="form-text mb-1">
+                            修改后将覆盖 <code>config.json</code> 中的配置。清空则使用 config.json 中的值。
+                        </div>
+                        <input type="url" class="form-control" id="wecom_webhook_url" name="wecom_webhook_url"
+                               value="{{ settings.wecom_webhook_url or '' }}"
+                               placeholder="https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=...">
+                    </div>
+
+                    <button type="submit" class="btn btn-primary">保存</button>
+                    <span id="saveMsg" class="ms-2 small"></span>
+                </form>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-4">
+        <div class="card">
+            <div class="card-header"><h5 class="card-title mb-0">当前规则预览</h5></div>
+            <div class="card-body" id="rulePreview" style="font-size:13px;line-height:1.8;">
+                <div>包含省份：<strong>{{ filter_config.enabled_provinces | join('、') }}</strong></div>
+                <div>排除城市：<strong>{{ filter_config.excluded_cities | join('、') }}</strong></div>
+                {% if filter_config.extra_cities %}
+                <div>额外城市：<strong>{{ filter_config.extra_cities | join('、') }}</strong></div>
+                {% endif %}
+                <hr class="my-2">
+                <div class="text-muted">
+                    例：广州的企业 → <span class="text-success">通过</span><br>
+                    深圳的企业 → <span class="text-danger">过滤</span>
+                    {% if filter_config.extra_cities %}
+                    <br>{{ filter_config.extra_cities[0] }}的企业 → <span class="text-success">通过</span>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function saveSettings() {
+    const btn = document.querySelector('button[type="submit"]');
+    const msg = document.getElementById('saveMsg');
+
+    const data = {
+        enabled_provinces: document.getElementById('enabled_provinces').value.trim(),
+        excluded_cities: document.getElementById('excluded_cities').value.trim(),
+        extra_cities: document.getElementById('extra_cities').value.trim(),
+        wecom_webhook_url: document.getElementById('wecom_webhook_url').value.trim(),
+        deepseek_api_key: document.getElementById('deepseek_api_key').value.trim(),
+        deepseek_api_url: document.getElementById('deepseek_api_url').value.trim(),
+        deepseek_model: document.getElementById('deepseek_model').value.trim(),
+    };
+
+    btn.disabled = true;
+    msg.textContent = '保存中...';
+
+    fetch('/api/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+    })
+    .then(r => r.json())
+    .then(result => {
+        msg.textContent = '已保存';
+        btn.disabled = false;
+        updatePreview(result.filter_config);
+        setTimeout(() => { msg.textContent = ''; }, 3000);
+    })
+    .catch(err => {
+        msg.textContent = '保存失败: ' + err;
+        btn.disabled = false;
+    });
+
+    return false;
+}
+
+function updatePreview(config) {
+    const preview = document.getElementById('rulePreview');
+    let html = '<div>包含省份：<strong>' + config.enabled_provinces.join('、') + '</strong></div>';
+    html += '<div>排除城市：<strong>' + config.excluded_cities.join('、') + '</strong></div>';
+    if (config.extra_cities && config.extra_cities.length) {
+        html += '<div>额外城市：<strong>' + config.extra_cities.join('、') + '</strong></div>';
+    }
+    html += '<hr class="my-2"><div class="text-muted">';
+    html += '例：广州的企业 → <span class="text-success">通过</span><br>';
+    html += '深圳的企业 → <span class="text-danger">过滤</span>';
+    if (config.extra_cities && config.extra_cities.length) {
+        html += '<br>' + config.extra_cities[0] + '的企业 → <span class="text-success">通过</span>';
+    }
+    html += '</div>';
+    preview.innerHTML = html;
+}
+</script>
+{% endblock %}

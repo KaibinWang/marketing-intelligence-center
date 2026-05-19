@@ -1,0 +1,10 @@
+{
+    "deepseek_api_key": "sk-你的DeepSeek API Key",
+    "deepseek_api_url": "https://api.deepseek.com",
+    "deepseek_model": "deepseek-chat",
+
+    "wecom_webhook_url": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=你的机器人key",
+
+    "data_dir": "./data",
+    "db_path": "./data/intelligence.db"
+}
