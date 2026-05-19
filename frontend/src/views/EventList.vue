@@ -82,7 +82,7 @@
         <el-table-column label="操作" width="155" fixed="right">
           <template #default="{ row }">
             <el-button size="small" @click.stop="goDetail(row)">查看</el-button>
-            <el-button v-if="row.status !== 'sent'" size="small" type="success" @click.stop="handleMarkSent(row)">发送</el-button>
+            <el-button size="small" type="success" @click.stop="handleMarkSent(row)">发送</el-button>
           </template>
         </el-table-column>
       </el-table>
